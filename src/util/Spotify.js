@@ -1,7 +1,8 @@
 let userAccessToken;
 let expiresIn;
 const clientID='d61d880aaf0d4d48bbb1ef6a9b5c3e6e';
-const redirectURI ="http://localhost:3000/";
+//const redirectURI ="http://localhost:3000/";
+const redirectURI ="http://capable-beef.surge.sh";
 const url ='https://api.spotify.com/v1/search?type=track&q='
 
 
@@ -10,42 +11,68 @@ let tracks=[];
 const Spotify={
 
   savePlaylist(playlistName,trackUri){
-    if((!playlistName)||(!trackUri)){
-      return;
-    }
-    let accessToken = userAccessToken;
-    let headerVar={Authorization: `Bearer ${userAccessToken}`};
+    if((!playlistName)||(!trackUri)){return;}
+    let accessToken=this.getAccessToken();
+    const userEndpoint="https://api.spotify.com/v1/me";
+    const headerObj={headers:
+      {Authorization: `Bearer ${accessToken}`}};
+
     let userId;
-    const meUrl='https://api.spotify.com/v1/me';
+    let playlistId;
 
-    return fetch(meUrl,headerVar).then(response =>{
-      if(response.ok){
-        return response.json();
-      }}).then(jsonResponse=>{
-        console.log(jsonResponse.id);
-      return jsonResponse.id;})
-
+    //fetch Userid
+    return fetch(userEndpoint, headerObj)
+    .then(response =>{
+      if(response.ok){return response.json();}})
+      .then(jsonResponse=>{
+         //console.log('User ID: '+jsonResponse.id);
+         userId=jsonResponse.id;})
+         .then(()=>{
+           const playListEndpoint=`https://api.spotify.com/v1/users/${userId}/playlists`;
+           const data = JSON.stringify({name:playlistName});
+           const playlistRequestObj={
+             method: 'POST',
+             headers:{
+               Authorization: `Bearer ${accessToken}`,
+             'Content-Type': 'application/json'},
+             body:data};
+           fetch(playListEndpoint,playlistRequestObj) //create Playlist
+           .then(response=>{if(response.ok){return response.json();}})
+               .then(jsonResponse=>{
+                 console.log(jsonResponse);
+                 playlistId=jsonResponse.id;})
+                 .then(()=>{
+                   const addTracksEndpoint =`https://api.spotify.com/v1/playlists/${playlistId}/tracks`
+                   const data =JSON.stringify({uris:trackUri});
+                   const addTrackRequestObj={
+                     method: 'POST',
+                     headers:{
+                       Authorization: `Bearer ${accessToken}`,
+                     'Content-Type': 'application/json'},
+                     body:data};
+                  fetch(addTracksEndpoint,addTrackRequestObj)//add Tracks
+                  .then(response=>{if(response.ok){return response.json();}
+                       });
+                  });
+        })
   },
 
   search(searchTerm){
+
     let endpoint = `${url}${searchTerm}`;
     let headerObj={headers:
       {Authorization: `Bearer ${this.getAccessToken()}`}};
 
-    return fetch(endpoint,headerObj).then(response => {
+    return fetch(endpoint,headerObj)
+    .then(response => {
       if (response.ok) {
         let jsonResponse1=response.json();
-        console.log('first then jsonresponse '+ jsonResponse1);
         return jsonResponse1;
-      }
-      //Still needs some work
-      //throw new Error('Request failed!');
-    }, networkError => {
-      console.log('Network Message'+ networkError.message)
-    }).then(jsonResponse => {
-        if (!jsonResponse.tracks) return [];
-        return jsonResponse.tracks.items.map(track => {
-         return {
+      }})
+       .then(jsonResponse => {
+         if (!jsonResponse) return [];
+         return jsonResponse.tracks.items.map(track => {
+           return {
             id: track.id,
             name: track.name,
             artist: track.artists[0].name,
@@ -53,7 +80,6 @@ const Spotify={
             uri: track.uri
           }})
         });
-
   },
 
   getAccessToken(){
@@ -78,7 +104,6 @@ const Spotify={
     else{
       let redirectUrl=`https://accounts.spotify.com/authorize?client_id=${clientID}&response_type=token&scope=playlist-modify-public&redirect_uri=${redirectURI}`;
       window.location =redirectUrl;
-
     }
   }
 
